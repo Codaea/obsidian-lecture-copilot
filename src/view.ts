@@ -67,6 +67,17 @@ export class LectureCopilotView extends ItemView {
             }
         });
 
+        // tiny stats bar underneath transcript scroller
+        const statsBar = container.createEl('div', { cls: 'lecture-copilot-stats-bar' });
+        statsBar.style.display = 'flex';
+        statsBar.style.justifyContent = 'space-between';
+        statsBar.style.fontSize = '0.85em';
+        statsBar.style.color = 'var(--text-muted)';
+        statsBar.style.marginTop = '4px';
+
+        const durationEl = statsBar.createEl('div', { text: 'Duration: 0:00:00' });
+        const wordCountEl = statsBar.createEl('div', { text: 'Words: 0' });
+
         // Set up the live update callback
         this.recorder.onTranscriptUpdate = (transcript: string) => {
             if (this.transcriptionEl) {
@@ -90,6 +101,11 @@ export class LectureCopilotView extends ItemView {
                     this.transcriptionEl.scrollTop = this.transcriptionEl.scrollHeight;
                 }
             }
+            if (wordCountEl) {
+                transcript = transcript.replace(/\n/g, ' '); // Replace newlines with spaces for word count
+                const words = transcript.trim().split(/\s+/).filter(Boolean);
+                wordCountEl.setText(`Words: ${words.length}`);
+            }
         };
 
         startButton.addEventListener("click", async () => {
@@ -100,6 +116,17 @@ export class LectureCopilotView extends ItemView {
                 new Notice("Recording started!");
                 startButton.hide();
                 stopButton.show();
+                // start a timer to update duration every second
+                let duration = 0;
+                this.registerInterval(window.setInterval(() => {
+                    duration++;
+                    if (durationEl) {
+                        const hours = Math.floor(duration / 3600);
+                        const minutes = Math.floor((duration % 3600) / 60);
+                        const seconds = Math.floor(duration % 60);
+                        durationEl.setText(`Duration: ${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+                    }
+                }, 1000));
             } catch (error) {
                 new Notice("Failed to start recording: " + error.message);
                 console.log(error.message);
