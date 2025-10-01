@@ -17,11 +17,13 @@ export default class LectureCopilot extends Plugin {
 		);
 
 		// Add ribbon icon that opens the side panel
-		this.addRibbonIcon('dice', 'Open Lecture Copilot', () => {
+		this.addRibbonIcon('notebook', 'Open Lecture Copilot', () => {
 			this.activateView();
 		});
 
 		this.addSettingTab(new LectureCopilotSettingTab(this.app, this));
+
+		this.activateView();
 	}
 
 	onunload() {
