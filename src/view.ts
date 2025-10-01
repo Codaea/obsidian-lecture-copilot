@@ -1,4 +1,4 @@
-import { ItemView, MarkdownView, WorkspaceLeaf, Notice, normalizePath } from 'obsidian';
+import { ItemView, MarkdownView, WorkspaceLeaf, Notice, normalizePath, IconName } from 'obsidian';
 import { dump } from 'js-yaml';
 import LectureCopilot, { LECTURE_COPILOT_VIEW_TYPE } from './main';
 import { AudioRecorder } from './audiorecorder';
@@ -28,6 +28,10 @@ export class LectureCopilotView extends ItemView {
 
     getDisplayText(): string {
         return 'Lecture Copilot';
+    }
+    
+    getIcon(): IconName {
+        return 'notebook';
     }
 
     async onOpen() {
