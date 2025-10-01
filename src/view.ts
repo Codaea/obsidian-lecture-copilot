@@ -7,6 +7,7 @@ export class LectureCopilotView extends ItemView {
     private recorder: AudioRecorder;
     private plugin: LectureCopilot;
     private transcriptionEl: HTMLElement | null = null;
+    private userHasScrolled = false;
 
     constructor(leaf: WorkspaceLeaf, plugin: LectureCopilot) {
         super(leaf);
@@ -38,16 +39,32 @@ export class LectureCopilotView extends ItemView {
         const container = this.containerEl.children[1];
         container.empty();
         container.createEl("h4", { text: "Lecture Copilot" });
-        container.createEl('br');
         // Create Start and Stop buttons
         const startButton = container.createEl("button", { text: "Start Recording" });
         const stopButton = container.createEl("button", { text: "Stop Recording" });
         stopButton.hide();
 
-        container.createEl('h5', { text: 'Transcription:', });
+        container.createEl('h5', { text: 'Transcription', });
         this.transcriptionEl = container.createEl('div', {
             text: '',
             cls: 'lecture-copilot-transcript'
+        });
+        
+        // Set fixed height and scrollable behavior
+        this.transcriptionEl.style.height = '6lh'; // 6 line-height units
+        this.transcriptionEl.style.overflowY = 'auto';
+        this.transcriptionEl.style.border = '1px solid var(--background-modifier-border)';
+        this.transcriptionEl.style.padding = '8px';
+        this.transcriptionEl.style.borderRadius = '4px';
+        this.transcriptionEl.style.backgroundColor = 'var(--background-secondary)';
+        
+        // Track user scroll behavior
+        this.transcriptionEl.addEventListener('scroll', () => {
+            if (this.transcriptionEl) {
+                const { scrollTop, scrollHeight, clientHeight } = this.transcriptionEl;
+                // Check if user has scrolled away from the bottom
+                this.userHasScrolled = scrollTop + clientHeight < scrollHeight - 5; // 5px tolerance
+            }
         });
 
         // Set up the live update callback
@@ -60,6 +77,7 @@ export class LectureCopilotView extends ItemView {
                 paragraphs.forEach((paragraph, index) => {
                     const p = this.transcriptionEl!.createEl('p');
                     p.textContent = paragraph;
+                    p.style.margin = '0 0 8px 0'; // Add some spacing between paragraphs
 
                     // Highlight the current (incomplete) turn
                     if (index === paragraphs.length - 1 && this.recorder.getCurrentTurn().trim()) {
@@ -67,14 +85,17 @@ export class LectureCopilotView extends ItemView {
                     }
                 });
 
-                // Auto-scroll to bottom
-                this.transcriptionEl.scrollTop = this.transcriptionEl.scrollHeight;
+                // Auto-scroll to bottom only if user hasn't manually scrolled up
+                if (!this.userHasScrolled) {
+                    this.transcriptionEl.scrollTop = this.transcriptionEl.scrollHeight;
+                }
             }
         };
 
         startButton.addEventListener("click", async () => {
             try {
                 this.recorder.clearTranscript(); // Clear previous transcript
+                this.userHasScrolled = false; // Reset scroll tracking when starting new recording
                 await this.recorder.startRecording();
                 new Notice("Recording started!");
                 startButton.hide();

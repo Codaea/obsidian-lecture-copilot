@@ -6,3 +6,15 @@ available in the app when your plugin is enabled.
 If your plugin does not need CSS, delete this file.
 
 */
+
+.lecture-copilot-transcript {
+    line-height: 1.4;
+    font-family: var(--font-text);
+}
+
+.lecture-copilot-transcript .current-turn {
+    background-color: var(--background-modifier-hover);
+    padding: 4px 6px;
+    border-radius: 3px;
+    border-left: 3px solid var(--accent-color);
+}

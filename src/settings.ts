@@ -2,10 +2,12 @@ import { App, PluginSettingTab, Setting } from 'obsidian';
 
 export interface LectureCopilotSettings {
     AssemblyAPIKey: string;
+    OpenAIAPIKey: string;
 }
 
 export const DEFAULT_SETTINGS: LectureCopilotSettings = {
     AssemblyAPIKey: 'KEYHERE',
+    OpenAIAPIKey: 'KEYHERE'
 }
 
 // Import the plugin type and view constant
@@ -42,6 +44,26 @@ export class LectureCopilotSettingTab extends PluginSettingTab {
                         const viewAny = leaf.view as any;
                         if (viewAny && typeof viewAny.updateAssemblyApiKey === 'function') {
                             try { viewAny.updateAssemblyApiKey(value); } catch (e) { console.error('Failed to update view API key', e); }
+                        }
+                    }
+                }));
+        new Setting(containerEl)
+            .setName('OpenAI API Key')
+            .setDesc('Your OpenAI API Key for AI services.')
+            .addText(text => text
+                .setPlaceholder('Enter your OpenAI API Key')
+                .setValue(this.plugin.settings.OpenAIAPIKey)
+                .onChange(async (value) => {
+                    this.plugin.settings.OpenAIAPIKey = value;
+                    await this.plugin.saveSettings();
+
+                    // Update any open LectureCopilotView instances so their AI client uses the new key
+                    const leaves = this.app.workspace.getLeavesOfType(LECTURE_COPILOT_VIEW_TYPE);
+                    for (const leaf of leaves) {
+                        // view might be our LectureCopilotView; use a safe cast
+                        const viewAny = leaf.view as any;
+                        if (viewAny && typeof viewAny.updateOpenAIApiKey === 'function') {
+                            try { viewAny.updateOpenAIApiKey(value); } catch (e) { console.error('Failed to update view API key', e); }
                         }
                     }
                 }));
