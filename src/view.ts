@@ -38,6 +38,12 @@ export class LectureCopilotView extends ItemView {
     async onOpen() {
         const container = this.containerEl.children[1];
         container.empty();
+        
+        // Set up flex layout for the main container
+        (container as HTMLElement).style.display = 'flex';
+        (container as HTMLElement).style.flexDirection = 'column';
+        (container as HTMLElement).style.height = '100%';
+        
         container.createEl("h4", { text: "Lecture Copilot" });
         // Create Start and Stop buttons
         const startButton = container.createEl("button", { text: "Start Recording" });
@@ -78,6 +84,60 @@ export class LectureCopilotView extends ItemView {
         const durationEl = statsBar.createEl('div', { text: 'Duration: 0:00:00' });
         const wordCountEl = statsBar.createEl('div', { text: 'Words: 0' });
 
+        const chatContent = container.createEl('div', { cls: 'lecture-copilot-chat-content' });
+        chatContent.style.marginTop = '12px';
+        chatContent.style.borderTop = '1px solid var(--background-modifier-border)';
+        chatContent.style.paddingTop = '12px';
+        chatContent.style.flex = '1';
+        chatContent.style.minHeight = '200px';
+        chatContent.style.overflowY = 'auto';
+        chatContent.style.display = 'flex';
+        chatContent.style.flexDirection = 'column';
+
+        const chatBox = container.createEl('div', { cls: 'lecture-copilot-chat-box' });
+        chatBox.style.marginTop = 'auto';
+        chatBox.style.display = 'flex';
+        chatBox.style.flexDirection = 'row';
+        
+        const chatInput = chatBox.createEl('textarea', { cls: 'lecture-copilot-chat-input', placeholder: 'Type your question here...' });
+        chatInput.style.width = '100%';
+        chatInput.style.height = '2rem';
+        chatInput.addEventListener('input', () => {
+            if (chatInput.scrollHeight > chatInput.clientHeight) {
+                chatInput.style.height = chatInput.scrollHeight + 'px';
+            } else {
+                chatInput.style.height = '2rem';
+            }
+        });
+        chatInput.style.resize = 'none';
+        chatInput.style.padding = '8px';
+        chatInput.style.border = '1px solid var(--background-modifier-border)';
+        chatInput.style.borderRadius = '4px';
+        chatInput.style.backgroundColor = 'var(--background-secondary)';
+        // Chat send box (button) on the right side of the chat input
+        const chatSendBox = chatBox.createEl('div', { cls: 'lecture-copilot-chat-send-box' });
+        chatSendBox.style.display = 'flex';
+        chatSendBox.style.justifyContent = 'flex-end';
+        chatSendBox.style.alignItems = 'center';
+
+
+        const sendButton = chatSendBox.createEl('button', { text: '>'});
+        sendButton.style.padding = '6px 16px';
+        sendButton.style.borderRadius = '4px';
+        sendButton.style.border = '1px solid var(--background-modifier-border)';
+        sendButton.style.backgroundColor = 'var(--background-primary)';
+        sendButton.style.cursor = 'pointer';
+        sendButton.style.fontWeight = 'bold';
+
+        sendButton.addEventListener('click', () => {
+            const message = chatInput.value.trim();
+            if (message) {
+            // Placeholder: handle sending the message
+            new Notice(`Message sent: ${message}`);
+            chatInput.value = '';
+            chatInput.style.height = '2rem';
+            }
+        });
         // Set up the live update callback
         this.recorder.onTranscriptUpdate = (transcript: string) => {
             if (this.transcriptionEl) {
@@ -107,7 +167,7 @@ export class LectureCopilotView extends ItemView {
                 wordCountEl.setText(`Words: ${words.length}`);
             }
         };
-
+        let durationInterval: number;
         startButton.addEventListener("click", async () => {
             try {
                 this.recorder.clearTranscript(); // Clear previous transcript
@@ -118,7 +178,7 @@ export class LectureCopilotView extends ItemView {
                 stopButton.show();
                 // start a timer to update duration every second
                 let duration = 0;
-                this.registerInterval(window.setInterval(() => {
+                durationInterval = this.registerInterval(window.setInterval(() => {
                     duration++;
                     if (durationEl) {
                         const hours = Math.floor(duration / 3600);
@@ -143,7 +203,13 @@ export class LectureCopilotView extends ItemView {
             }
             stopButton.hide();
             startButton.show();
+            if (durationInterval) {
+                clearInterval(durationInterval);
+            }
+            
         });
+
+
     }
 
     async onClose() {
@@ -167,14 +233,24 @@ export class LectureCopilotView extends ItemView {
                 new Notice("No active note to attach transcript to. Saving transcript to vault root.");
             }
 
-            // Build transcript filename next to the active file (or root)
+            // Build transcript filename in transcripts/ folder at vault root
             const now = new Date();
-            const timestamp = `${now.getDay()}-${now.getMonth() + 1}`
+            const month = (now.getMonth() + 1).toString().padStart(2, '0'); // 01-12
+            const day = now.getDate().toString().padStart(2, '0'); // 01-31
+            const timestamp = `${month}-${day}`;
             const transcriptBasename = activeFileAtStart ? `${activeFileAtStart.basename}-transcript-${timestamp}.md` : `transcript-${timestamp}.md`;
-            const folder = activeFileAtStart ? activeFileAtStart.path.replace(/\/[^/]+$/, '') : '';
-            const filePath = folder ? `${folder}/${transcriptBasename}` : transcriptBasename;
+            
+            // Always place transcripts in the transcripts/ folder at vault root
+            const transcriptsFolder = 'transcripts';
+            const filePath = `${transcriptsFolder}/${transcriptBasename}`;
             const normalized = normalizePath(filePath);
             const fileContent = `# Transcript\n\n${transcript}`;
+
+            // Ensure the transcripts folder exists
+            const transcriptsFolderPath = normalizePath(transcriptsFolder);
+            if (!await this.app.vault.adapter.exists(transcriptsFolderPath)) {
+                await this.app.vault.createFolder(transcriptsFolderPath);
+            }
 
             // If there is an active note file, update its frontmatter with a transcript link
             if (activeFileAtStart) {
@@ -204,9 +280,20 @@ export class LectureCopilotView extends ItemView {
                 }
             }
 
-            // Create the transcript file
-            await this.app.vault.create(normalized, fileContent);
-            new Notice(`Transcript saved to ${transcriptBasename}`);
+            // Create or append to the transcript file
+            const fileExists = await this.app.vault.adapter.exists(normalized);
+            if (fileExists) {
+                // File exists - append new content with timestamp
+                const existingContent = await this.app.vault.adapter.read(normalized);
+                const appendTime = new Date().toLocaleString();
+                const appendedContent = `${existingContent}\n\n---\n**Transcript appended at ${appendTime}**\n\n${transcript}`;
+                await this.app.vault.adapter.write(normalized, appendedContent);
+                new Notice(`Transcript appended to existing ${transcriptBasename}`);
+            } else {
+                // File doesn't exist - create new file
+                await this.app.vault.create(normalized, fileContent);
+                new Notice(`Transcript saved to ${transcriptBasename}`);
+            }
 
             // Open the transcript in a split leaf (may steal focus)...
             const newLeaf = this.app.workspace.getLeaf('split');
