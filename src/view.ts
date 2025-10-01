@@ -2,18 +2,32 @@ import { ItemView, MarkdownView, WorkspaceLeaf, Notice, normalizePath, IconName 
 import { dump } from 'js-yaml';
 import LectureCopilot, { LECTURE_COPILOT_VIEW_TYPE } from './main';
 import { AudioRecorder } from './audiorecorder';
+import { transcript_assistant_script } from './prompts';
 
 export class LectureCopilotView extends ItemView {
     private recorder: AudioRecorder;
     private plugin: LectureCopilot;
     private transcriptionEl: HTMLElement | null = null;
+    private chatContentEl: HTMLElement | null = null;
     private userHasScrolled = false;
+    private openAIKey: string = '';
+    private conversationHistory: {
+        role: 'developer' | 'user' | 'assistant';
+        content: string;
+    }[] = [
+            {
+                role: 'user',
+                content: 'What are the key points discussed in the meeting?'
+            }
+        ];
 
     constructor(leaf: WorkspaceLeaf, plugin: LectureCopilot) {
         super(leaf);
         this.plugin = plugin;
         // initialize recorder with the current saved API key
         this.recorder = new AudioRecorder(this.plugin.settings?.AssemblyAPIKey ?? '');
+        // initialize OpenAI key from settings
+        this.openAIKey = this.plugin.settings?.OpenAIAPIKey ?? '';
     }
 
     // allow updating the AssemblyAI key at runtime when the user changes settings
@@ -23,6 +37,12 @@ export class LectureCopilotView extends ItemView {
         }
     }
 
+
+    public updateOpenAIApiKey(apiKey: string) {
+        // Placeholder for any future OpenAI key updates
+        this.openAIKey = apiKey;
+    }
+
     getViewType() {
         return LECTURE_COPILOT_VIEW_TYPE;
     }
@@ -30,7 +50,7 @@ export class LectureCopilotView extends ItemView {
     getDisplayText(): string {
         return 'Lecture Copilot';
     }
-    
+
     getIcon(): IconName {
         return 'notebook';
     }
@@ -38,12 +58,12 @@ export class LectureCopilotView extends ItemView {
     async onOpen() {
         const container = this.containerEl.children[1];
         container.empty();
-        
+
         // Set up flex layout for the main container
         (container as HTMLElement).style.display = 'flex';
         (container as HTMLElement).style.flexDirection = 'column';
         (container as HTMLElement).style.height = '100%';
-        
+
         container.createEl("h4", { text: "Lecture Copilot" });
         // Create Start and Stop buttons
         const startButton = container.createEl("button", { text: "Start Recording" });
@@ -55,7 +75,7 @@ export class LectureCopilotView extends ItemView {
             text: '',
             cls: 'lecture-copilot-transcript'
         });
-        
+
         // Set fixed height and scrollable behavior
         this.transcriptionEl.style.height = '6lh'; // 6 line-height units
         this.transcriptionEl.style.overflowY = 'auto';
@@ -63,7 +83,7 @@ export class LectureCopilotView extends ItemView {
         this.transcriptionEl.style.padding = '8px';
         this.transcriptionEl.style.borderRadius = '4px';
         this.transcriptionEl.style.backgroundColor = 'var(--background-secondary)';
-        
+
         // Track user scroll behavior
         this.transcriptionEl.addEventListener('scroll', () => {
             if (this.transcriptionEl) {
@@ -93,12 +113,17 @@ export class LectureCopilotView extends ItemView {
         chatContent.style.overflowY = 'auto';
         chatContent.style.display = 'flex';
         chatContent.style.flexDirection = 'column';
+        chatContent.style.gap = '8px';
+        chatContent.style.padding = '12px';
+        
+        // Store reference to chat content for adding messages
+        this.chatContentEl = chatContent;
 
         const chatBox = container.createEl('div', { cls: 'lecture-copilot-chat-box' });
         chatBox.style.marginTop = 'auto';
         chatBox.style.display = 'flex';
         chatBox.style.flexDirection = 'row';
-        
+
         const chatInput = chatBox.createEl('textarea', { cls: 'lecture-copilot-chat-input', placeholder: 'Type your question here...' });
         chatInput.style.width = '100%';
         chatInput.style.height = '2rem';
@@ -114,14 +139,36 @@ export class LectureCopilotView extends ItemView {
         chatInput.style.border = '1px solid var(--background-modifier-border)';
         chatInput.style.borderRadius = '4px';
         chatInput.style.backgroundColor = 'var(--background-secondary)';
+        
+        // Handle Enter key to send message
+        chatInput.addEventListener('keydown', async (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                const message = chatInput.value.trim();
+                if (message) {
+                    chatInput.value = '';
+                    chatInput.style.height = '2rem';
+                    await this.sendMessage(message);
+                }
+            }
+        });
         // Chat send box (button) on the right side of the chat input
         const chatSendBox = chatBox.createEl('div', { cls: 'lecture-copilot-chat-send-box' });
         chatSendBox.style.display = 'flex';
         chatSendBox.style.justifyContent = 'flex-end';
         chatSendBox.style.alignItems = 'center';
+        chatSendBox.style.gap = '4px';
 
+        const clearButton = chatSendBox.createEl('button', { text: 'Clear' });
+        clearButton.style.padding = '6px 12px';
+        clearButton.style.borderRadius = '4px';
+        clearButton.style.border = '1px solid var(--background-modifier-border)';
+        clearButton.style.backgroundColor = 'var(--background-primary)';
+        clearButton.style.cursor = 'pointer';
+        clearButton.style.fontSize = '0.85em';
+        clearButton.style.color = 'var(--text-muted)';
 
-        const sendButton = chatSendBox.createEl('button', { text: '>'});
+        const sendButton = chatSendBox.createEl('button', { text: '>' });
         sendButton.style.padding = '6px 16px';
         sendButton.style.borderRadius = '4px';
         sendButton.style.border = '1px solid var(--background-modifier-border)';
@@ -129,13 +176,16 @@ export class LectureCopilotView extends ItemView {
         sendButton.style.cursor = 'pointer';
         sendButton.style.fontWeight = 'bold';
 
-        sendButton.addEventListener('click', () => {
+        clearButton.addEventListener('click', () => {
+            this.clearChat();
+        });
+
+        sendButton.addEventListener('click', async () => {
             const message = chatInput.value.trim();
             if (message) {
-            // Placeholder: handle sending the message
-            new Notice(`Message sent: ${message}`);
-            chatInput.value = '';
-            chatInput.style.height = '2rem';
+                chatInput.value = '';
+                chatInput.style.height = '2rem';
+                await this.sendMessage(message);
             }
         });
         // Set up the live update callback
@@ -206,7 +256,7 @@ export class LectureCopilotView extends ItemView {
             if (durationInterval) {
                 clearInterval(durationInterval);
             }
-            
+
         });
 
 
@@ -239,7 +289,7 @@ export class LectureCopilotView extends ItemView {
             const day = now.getDate().toString().padStart(2, '0'); // 01-31
             const timestamp = `${month}-${day}`;
             const transcriptBasename = activeFileAtStart ? `${activeFileAtStart.basename}-transcript-${timestamp}.md` : `transcript-${timestamp}.md`;
-            
+
             // Always place transcripts in the transcripts/ folder at vault root
             const transcriptsFolder = 'transcripts';
             const filePath = `${transcriptsFolder}/${transcriptBasename}`;
@@ -319,4 +369,156 @@ export class LectureCopilotView extends ItemView {
         }
     }
 
+    async sendMessage(message: string) {
+        try {
+            // Get the most recent editor view
+            const mostRecentEditorView = this.getMostRecentEditorView();
+            let savedTranscript = '';
+            
+            if (mostRecentEditorView && mostRecentEditorView.file) {
+                // Get frontmatter from the active file
+                const cache = this.app.metadataCache.getFileCache(mostRecentEditorView.file);
+                const transcriptWikilink = cache?.frontmatter?.transcript;
+                
+                if (transcriptWikilink) {
+                    // Extract the page name from wikilink format [[PageName]]
+                    const pageName = transcriptWikilink.replace(/\[\[([^\]]+)\]\]/, '$1');
+                    const transcriptPath = `transcripts/${pageName}.md`;
+                    const transcriptFile = this.app.vault.getAbstractFileByPath(normalizePath(transcriptPath));
+                    
+                    if (transcriptFile) {
+                        savedTranscript = await this.app.vault.read(transcriptFile as any);
+                    }
+                }
+            }
+            
+            // Get the live transcript from the recorder
+            const liveTranscript = this.recorder.getFullTranscript();
+            
+            // Combine saved and live transcripts
+            let combinedTranscript = '';
+            if (savedTranscript) {
+                combinedTranscript = savedTranscript;
+                if (liveTranscript) {
+                    combinedTranscript += '\n\n---\n**Live Recording in Progress**\n\n' + liveTranscript;
+                }
+            } else {
+                combinedTranscript = liveTranscript || 'No Existing transcript available';
+            }
+
+            const forcedIntroPrompts = [
+                {
+                    role: 'developer' as const,
+                    content: transcript_assistant_script
+                },
+                {
+                    role: 'user' as const,
+                    content: "The following is the transcript: " + combinedTranscript
+                },
+            ]
+            
+            this.conversationHistory.push({
+                role: 'user',
+                content: message
+            })
+            
+            // Display user message in chat UI
+            this.displayUserMessage(message);
+
+            console.log('openAIKey:', this.openAIKey);
+            const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.openAIKey}`
+                },
+                body: JSON.stringify({
+                    model: 'gpt-4',
+                    messages: [...forcedIntroPrompts, ...this.conversationHistory],
+                })
+            })
+
+            if (!resp.ok) {
+                throw new Error(`OpenAI API error: ${resp.status} ${resp.statusText}`);
+            }
+
+            const data = await resp.json();
+            const assistantResponse = data.choices?.[0]?.message?.content;
+            
+            if (assistantResponse) {
+                this.conversationHistory.push({
+                    role: 'assistant',
+                    content: assistantResponse
+                });
+                this.displayAssistantMessage(assistantResponse);
+            }
+        } catch (error) {
+            console.error('Error sending message:', error);
+            new Notice('Failed to send message: ' + (error instanceof Error ? error.message : String(error)));
+        }
+    }
+
+    getMostRecentEditorView(): MarkdownView | null {
+        const mostRecentLeaf = this.app.workspace.getMostRecentLeaf();
+        return mostRecentLeaf?.view instanceof MarkdownView ? mostRecentLeaf.view : null;
+    }
+
+    private displayUserMessage(message: string) {
+        if (!this.chatContentEl) return;
+
+        const messageContainer = this.chatContentEl.createEl('div', { cls: 'chat-message user-message' });
+        messageContainer.style.display = 'flex';
+        messageContainer.style.justifyContent = 'flex-end';
+        messageContainer.style.marginBottom = '8px';
+
+        const messageBubble = messageContainer.createEl('div', { cls: 'message-bubble user-bubble' });
+        messageBubble.style.maxWidth = '70%';
+        messageBubble.style.padding = '8px 12px';
+        messageBubble.style.borderRadius = '12px';
+        messageBubble.style.backgroundColor = 'var(--text-muted)';
+        messageBubble.style.color = 'var(--text-on-accent)';
+        messageBubble.style.wordWrap = 'break-word';
+        messageBubble.textContent = message;
+
+        // Auto-scroll to bottom
+        this.chatContentEl.scrollTop = this.chatContentEl.scrollHeight;
+    }
+
+    private displayAssistantMessage(message: string) {
+        if (!this.chatContentEl) return;
+
+        const messageContainer = this.chatContentEl.createEl('div', { cls: 'chat-message assistant-message' });
+        messageContainer.style.display = 'flex';
+        messageContainer.style.justifyContent = 'flex-start';
+        messageContainer.style.marginBottom = '8px';
+
+        const messageBubble = messageContainer.createEl('div', { cls: 'message-bubble assistant-bubble' });
+        messageBubble.style.maxWidth = '70%';
+        messageBubble.style.padding = '8px 12px';
+        messageBubble.style.borderRadius = '12px';
+        messageBubble.style.backgroundColor = 'var(--interactive-accent)';
+        messageBubble.style.color = 'var(--text-on-accent)';
+        messageBubble.style.wordWrap = 'break-word';
+        messageBubble.textContent = message;
+
+        // Auto-scroll to bottom
+        this.chatContentEl.scrollTop = this.chatContentEl.scrollHeight;
+    }
+
+    private clearChat() {
+        if (!this.chatContentEl) return;
+
+        // Clear all chat messages from the UI
+        this.chatContentEl.empty();
+
+        // Reset conversation history but keep the initial message
+        this.conversationHistory = [
+            {
+                role: 'user',
+                content: 'What are the key points discussed in the meeting?'
+            }
+        ];
+
+        new Notice('Chat cleared');
+    }
 }

@@ -62,8 +62,8 @@ export class LectureCopilotSettingTab extends PluginSettingTab {
                     for (const leaf of leaves) {
                         // view might be our LectureCopilotView; use a safe cast
                         const viewAny = leaf.view as any;
-                        if (viewAny && typeof viewAny.updateOpenAIApiKey === 'function') {
-                            try { viewAny.updateOpenAIApiKey(value); } catch (e) { console.error('Failed to update view API key', e); }
+                        if (viewAny && typeof viewAny.updateOpenAIKey === 'function') {
+                            try { viewAny.updateOpenAIKey(value); } catch (e) { console.error('Failed to update view API key', e); }
                         }
                     }
                 }));
