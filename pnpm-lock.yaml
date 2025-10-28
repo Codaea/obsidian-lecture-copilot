@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@langfuse/tracing':
+        specifier: ^4.3.0
+        version: 4.3.0(@opentelemetry/api@1.9.0)
       js-yaml:
         specifier: ^4.1.0
         version: 4.1.0
@@ -211,6 +214,15 @@ packages:
     resolution: {integrity: sha512-93zYdMES/c1D69yZiKDBj0V24vqNzB/koF26KPaagAfd3P/4gUlh3Dys5ogAK+Exi9QyzlD8x/08Zt7wIKcDcA==}
     deprecated: Use @eslint/object-schema instead
 
+  '@langfuse/core@4.3.0':
+    resolution: {integrity: sha512-KPSyEAHn5vLivofDtnHCnhrsCBc/NI7lOH38UvIlK0kxMcFeRKvLU2duzeix5A5lzo6Hw4O9FW2bGBwLE3j2rg==}
+
+  '@langfuse/tracing@4.3.0':
+    resolution: {integrity: sha512-ZfjrktI5GGIQkKYmYhtZcmGlgP5AgDcDzxdipvtvn9IR4EBkKKhWNwBWOb3mrIm9PPVamWG4HHAbeM0yuCVfcA==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@opentelemetry/api': ^1.9.0
+
   '@marijn/find-cluster-break@1.0.2':
     resolution: {integrity: sha512-l0h88YhZFyKdXIFNfSWpyjStDjGHwZ/U7iobcK1cQQD8sejsONdQtTVU+1wVN1PBw40PiiHB1vA5S7VTfQiP9g==}
 
@@ -225,6 +237,10 @@ packages:
   '@nodelib/fs.walk@1.2.8':
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
+
+  '@opentelemetry/api@1.9.0':
+    resolution: {integrity: sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==}
+    engines: {node: '>=8.0.0'}
 
   '@types/codemirror@5.60.8':
     resolution: {integrity: sha512-VjFgDF/eB+Aklcy15TtOTLQeMjTo07k7KAjql8OK5Dirr7a6sJY4T1uVBDuTVG9VEmn1uUsohOpYnVfgC6/jyw==}
@@ -882,6 +898,13 @@ snapshots:
 
   '@humanwhocodes/object-schema@2.0.3': {}
 
+  '@langfuse/core@4.3.0': {}
+
+  '@langfuse/tracing@4.3.0(@opentelemetry/api@1.9.0)':
+    dependencies:
+      '@langfuse/core': 4.3.0
+      '@opentelemetry/api': 1.9.0
+
   '@marijn/find-cluster-break@1.0.2': {}
 
   '@nodelib/fs.scandir@2.1.5':
@@ -895,6 +918,8 @@ snapshots:
     dependencies:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.19.1
+
+  '@opentelemetry/api@1.9.0': {}
 
   '@types/codemirror@5.60.8':
     dependencies:

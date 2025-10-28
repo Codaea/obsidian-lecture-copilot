@@ -102,50 +102,6 @@ export class TranscriptionUI {
         this.userHasScrolled = false;
     }
 
-    async saveTranscriptToFile(transcript: string): Promise<void> {
-        const prevActiveLeaf = this.view.app.workspace.activeLeaf;
-        const mostRecentLeaf = this.view.app.workspace.getMostRecentLeaf();
-        const prevMarkdownView = mostRecentLeaf?.view instanceof MarkdownView ? (mostRecentLeaf.view as MarkdownView) : null;
-        const activeFileAtStart = prevMarkdownView?.file ?? this.view.app.workspace.getActiveFile();
-
-        try {
-            if (!activeFileAtStart) {
-                new Notice("No active note to attach transcript to. Saving transcript to vault root.");
-            }
-
-            const now = new Date();
-            const month = (now.getMonth() + 1).toString().padStart(2, '0');
-            const day = now.getDate().toString().padStart(2, '0');
-            const timestamp = `${month}-${day}`;
-            const transcriptBasename = activeFileAtStart ? 
-                `${activeFileAtStart.basename}-transcript-${timestamp}.md` : 
-                `transcript-${timestamp}.md`;
-
-            const transcriptsFolder = 'transcripts';
-            const filePath = `${transcriptsFolder}/${transcriptBasename}`;
-            const normalized = normalizePath(filePath);
-            const fileContent = `# Transcript\n\n${transcript}`;
-
-            const transcriptsFolderPath = normalizePath(transcriptsFolder);
-            if (!await this.view.app.vault.adapter.exists(transcriptsFolderPath)) {
-                await this.view.app.vault.createFolder(transcriptsFolderPath);
-            }
-
-            if (activeFileAtStart) {
-                await this.updateFileFrontmatter(activeFileAtStart, transcriptBasename);
-            }
-
-            await this.createOrAppendTranscriptFile(normalized, fileContent, transcript, transcriptBasename);
-            await this.openTranscriptFile(normalized);
-            
-            this.restorePreviousView(prevActiveLeaf, prevMarkdownView);
-
-        } catch (error) {
-            console.error("Error during transcript to file:", error);
-            new Notice("Error saving transcript: " + (error instanceof Error ? error.message : String(error)));
-        }
-    }
-
     private async updateFileFrontmatter(activeFile: any, transcriptBasename: string): Promise<void> {
         try {
             const cache = this.view.app.metadataCache.getFileCache(activeFile);
@@ -172,12 +128,21 @@ export class TranscriptionUI {
         }
     }
 
-    private async createOrAppendTranscriptFile(normalized: string, fileContent: string, transcript: string, transcriptBasename: string): Promise<void> {
+    private async createOrAppendTranscriptFile(
+        normalized: string,
+        fileContent: string,
+        transcript: string,
+        transcriptBasename: string,
+        paraphrased: string = '',
+        rewrite: string = '',
+        modelInfo: any = {}
+    ): Promise<void> {
         const fileExists = await this.view.app.vault.adapter.exists(normalized);
         if (fileExists) {
             const existingContent = await this.view.app.vault.adapter.read(normalized);
             const appendTime = new Date().toLocaleString();
-            const appendedContent = `${existingContent}\n\n---\n**Transcript appended at ${appendTime}**\n\n${transcript}`;
+            // Append new content in the same format
+            const appendedContent = `${existingContent}\n\n---\n**Transcript appended at ${appendTime}**\n\n# Paraphrased Summary\n\n${paraphrased ? `> ${paraphrased}\n\n` : ''}## Rewrites\n\n${rewrite ? `> ${rewrite}\n\n` : ''}## Original Transcript\n\n${transcript}`;
             await this.view.app.vault.adapter.write(normalized, appendedContent);
             new Notice(`Transcript appended to existing ${transcriptBasename}`);
         } else {

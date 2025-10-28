@@ -8,7 +8,7 @@ import { TranscriptionUI } from './ui/transcription';
 export class LectureCopilotView extends ItemView {
     private recorder: AudioRecorder;
     private plugin: LectureCopilot;
-    private openAIKey: string = '';
+    private openAIKey = '';
     private chatUI: ChatUI;
     private controlsUI: ControlsUI;
     private transcriptionUI: TranscriptionUI;
@@ -33,7 +33,6 @@ export class LectureCopilotView extends ItemView {
             this.recorder.setAssemblyAPIKey(apiKey);
         }
     }
-
 
     public updateOpenAIKey(apiKey: string) {
         this.openAIKey = apiKey;
@@ -94,9 +93,12 @@ export class LectureCopilotView extends ItemView {
     public async transcriptToFile(): Promise<void> {
         const transcript = await this.recorder.stopRecording();
         new Notice("Recording stopped!");
-        await this.transcriptionUI.saveTranscriptToFile(transcript);
+        
+        const transcriptionManager = this.plugin.transcriptmanager;
+        console.log("Saving transcript to file...");
+        await transcriptionManager.saveTranscript(transcript);
+        
     }
-
 
 
     public async getCombinedTranscript(): Promise<string> {

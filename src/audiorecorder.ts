@@ -78,8 +78,6 @@ export class AudioRecorder {
 		// Finalize any remaining current turn
 		const transcript = this.getFullTranscript();
 		return transcript;
-
-
 	}
 
 	private async initAssemblyAIWebSocket(): Promise<WebSocket> {

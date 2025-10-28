@@ -1,15 +1,24 @@
 # Lecture Copilot
+A [Obsidian]() plugin for transcribing and interacting with lecture transcripts. 
 
-A MVP workflow for Recording, transcribing, and supplementing lecture notes
+Intention/Use
 
+## Design/Thoughts
 Problem: I can't take notes fast enough sometimes and miss key lecture moments during class
 
 Solution: Ask classmate next to me, study groups
 
 Gamer Solution: Build a tool that listens and transcribes the lectures
 
+Stuff we still need
+- [ ] settings option to open split when done or in new tab
+- [X] add to existing transcript, or new one
 
+- [X] the second part LLM interaction with the part. 
+this just needs to read the properties for finding the transcript, then read that into a LLM chat response. chat messaging tool needed. Tab based at the top for record/chat? or maybe make a little UI all together. build this at library tommorow maybe
 
+- [ ] save to audio file nearby and add to transcript
+# Their docs, not mine
 ## First time developing plugins?
 
 Quick starting guide for new plugin devs:
